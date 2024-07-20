@@ -1,0 +1,15 @@
+version: '3'
+services:
+  frontend:
+    build: ./build/frontend
+    volumes:
+      - ./frontend/src:/frontend
+    ports:
+      - "3000:3000"
+  backend:
+    build: ./build/backend
+    volumes:
+      - ./backend/src:/backend
+    ports:
+      - "8080:8080"
+    tty: true
