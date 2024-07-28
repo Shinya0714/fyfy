@@ -12,4 +12,9 @@ services:
       - ./backend/src:/backend
     ports:
       - "8080:8080"
-    tty: true
+  localstack:
+    image: localstack/localstack:s3-latest
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
