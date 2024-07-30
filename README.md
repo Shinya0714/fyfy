@@ -5,23 +5,23 @@
 技術:
 
 認証:
- - [ ]JWT
- - [ ]OAuth 2.0
+ - [ ] JWT
+ - [ ] OAuth 2.0
 
 セキュリティ:
- - [ ]AES暗号化
- - [ ]HTTPS
- - [ ]CSRF対策
+ - [ ] AES暗号化
+ - [ ] HTTPS
+ - [ ] CSRF対策
 
 パフォーマンス:
- - [ ]CDN（Content Delivery Network）
- - [ ]キャッシュ戦略
+ - [ ] CDN（Content Delivery Network）
+ - [ ] キャッシュ戦略
 
 フロントエンド:
- - [x]React
+ - [x] React
 
 バックエンド:
- - [x]Go
+ - [x] Go
 
 ストレージ:
- - [x]AWS S3
+ - [x] AWS S3
