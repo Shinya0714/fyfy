@@ -4,14 +4,14 @@
 
 技術:
 
-認証: JWT、OAuth 2.0
+認証: - [ ]JWT、- [ ]OAuth 2.0
 
-セキュリティ: AES暗号化、HTTPS、CSRF対策
+セキュリティ: - [ ]AES暗号化、- [ ]HTTPS、- [ ]CSRF対策
 
-パフォーマンス: CDN（Content Delivery Network）、キャッシュ戦略
+パフォーマンス: - [ ]CDN（Content Delivery Network）、- [ ]キャッシュ戦略
 
-フロントエンド: React
+フロントエンド: - [x]React
 
-バックエンド: Node.js、Express
+バックエンド: - [x]Go
 
-ストレージ: AWS S3
+ストレージ: - [x]AWS S3
