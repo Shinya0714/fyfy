@@ -5,13 +5,13 @@
 
 ## 技術
 認証:
- - [ ] JWT
+ - [x] JWT
  - [ ] OAuth 2.0
 
 セキュリティ:
  - [x] AES暗号化
  - [ ] HTTPS
- - [ ] CSRF対策
+ - [x] CSRF対策
 
 パフォーマンス:
  - [ ] CDN（Content Delivery Network）

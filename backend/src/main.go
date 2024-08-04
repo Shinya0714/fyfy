@@ -5,28 +5,112 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/csrf"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 )
 
 // AWS S3の設定
 const (
-	S3Endpoint = "http://localstack:4566" // LocalStackのS3エンドポイント
+	S3Endpoint = "http://localstack:4566"
 	S3Region   = "ap-northeast-1"
-	S3Bucket   = "my-local-bucket" // アップロード先のバケット名
+	S3Bucket   = "my-local-bucket"
 )
 
 func main() {
-	http.HandleFunc("/upload", uploadFile)
-	fmt.Println("Server listening on port 8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	tokenString, err := generateJWT()
+	if err != nil {
+		fmt.Println("Error generating token:", err)
+		return
+	}
+	fmt.Println("Generated token:", tokenString)
+
+	token, err := verifyJWT(tokenString)
+	if err != nil {
+		fmt.Println("Error verifying token:", err)
+		return
+	}
+	fmt.Println("Token is valid:", token)
+
+	r := mux.NewRouter()
+
+	// CSRF保護のためのキー
+	csrfKey := []byte("32-byte-long-auth-key")
+
+	// CORS設定
+	corsMiddleware := handlers.CORS(
+		handlers.AllowedOrigins([]string{"http://localhost:3000"}),
+		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{"X-Csrf-Token"}),
+		handlers.AllowCredentials(),
+	)
+
+	// CSRF保護ミドルウェアを設定
+	csrfMiddleware := csrf.Protect(csrfKey, csrf.Secure(false))
+
+	r.HandleFunc("/token", tokenHandler).Methods("GET")
+	r.HandleFunc("/upload", uploadHandler).Methods("POST")
+
+	err = http.ListenAndServe(":8080", corsMiddleware(csrfMiddleware(r)))
+	if err != nil {
+		fmt.Println("Error starting server:", err)
+	}
+}
+
+func tokenHandler(w http.ResponseWriter, r *http.Request) {
+	token := csrf.Token(r)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"csrf_token": "%s"}`, token)
+}
+
+var mySigningKey = []byte("secret")
+
+// JWT生成
+func generateJWT() (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"authorized": true,
+		"user":       "user@example.com",
+		"exp":        time.Now().Add(time.Minute * 30).Unix(),
+	})
+
+	tokenString, err := token.SignedString(mySigningKey)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+// JWT検証
+func verifyJWT(tokenString string) (*jwt.Token, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return mySigningKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("token is not valid")
+	}
+
+	return token, nil
 }
 
 // 鍵の長さを適切な長さにパディングまたはトリミングする関数
@@ -110,7 +194,7 @@ func encrypt(data []byte, passPhrase string) ([]byte, error) {
 // 	return plaintext, nil
 // }
 
-func uploadFile(w http.ResponseWriter, r *http.Request) {
+func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// LocalStackのS3クライアントを作成
 	sess := session.Must(session.NewSession(&aws.Config{
 		Endpoint:         aws.String(S3Endpoint),
@@ -188,7 +272,9 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Successfully uploaded file to S3\n")
+	response := map[string]string{"message": "File uploaded successfully"}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 // func makeBucket() error {

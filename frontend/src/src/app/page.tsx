@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import axios from 'axios';
 
 export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -11,38 +12,45 @@ export default function Home() {
     }
   };
 
-  const uploadFile = async () => {
+  const submit = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    // デフォルトのボタン動作をキャンセル
+    event.preventDefault();
+
     if (!selectedFile) {
       alert('Please select a file');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('pdfFile', selectedFile);
-
     try {
-      const response = await fetch('http://localhost:8080/upload', {
-        method: 'POST',
-        body: formData
+      // サーバーからCSRFトークンを取得
+      const csrfResponse = await axios.get('http://localhost:8080/token', { withCredentials: true });
+      const csrfToken = csrfResponse.data.csrf_token;
+
+      const formData = new FormData();
+      formData.append('pdfFile', selectedFile);
+
+      // ファイルアップロードのPOSTリクエストを送信
+      const response = await axios.post('http://localhost:8080/upload', formData, {
+        headers: {
+          'X-CSRF-Token': csrfToken
+        },
+        withCredentials: true
       });
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error('Failed to upload file');
       }
 
-      const result = await response.json();
-      console.log('File uploaded successfully:', result);
-      // Handle success, if needed
+      console.log('File uploaded successfully:', response.data.message);
     } catch (error) {
       console.error('Error uploading file:', error);
-      // Handle error
     }
   };
 
   return (
     <div>
       <input type="file" onChange={handleFileChange} />
-      <button onClick={uploadFile}>Upload PDF</button>
+      <button type="submit" onClick={submit}>Submit</button>
     </div>
   );
 }
