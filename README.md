@@ -15,7 +15,7 @@
 
 パフォーマンス:
  - [ ] CDN（Content Delivery Network）
- - [ ] キャッシュ戦略
+ - [x] キャッシュ戦略
 
 フロントエンド:
  - [x] React
