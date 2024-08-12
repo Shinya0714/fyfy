@@ -30,6 +30,7 @@ const (
 )
 
 func main() {
+	// JWT生成
 	tokenString, err := generateJWT()
 	if err != nil {
 		fmt.Println("Error generating token:", err)
@@ -37,6 +38,7 @@ func main() {
 	}
 	fmt.Println("Generated token:", tokenString)
 
+	// JWT検証
 	token, err := verifyJWT(tokenString)
 	if err != nil {
 		fmt.Println("Error verifying token:", err)
@@ -51,7 +53,7 @@ func main() {
 
 	// CORS設定
 	corsMiddleware := handlers.CORS(
-		handlers.AllowedOrigins([]string{"http://localhost:3000"}),
+		handlers.AllowedOrigins([]string{"http://frontend"}),
 		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"}),
 		handlers.AllowedHeaders([]string{"X-Csrf-Token"}),
 		handlers.AllowCredentials(),
@@ -60,8 +62,11 @@ func main() {
 	// CSRF保護ミドルウェアを設定
 	csrfMiddleware := csrf.Protect(csrfKey, csrf.Secure(false))
 
-	r.HandleFunc("/token", tokenHandler).Methods("GET")
-	r.HandleFunc("/upload", uploadHandler).Methods("POST")
+	// プレフィックスを `/api` としてルーターを作成
+	apiRouter := r.PathPrefix("/api").Subrouter()
+	apiRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "healthy. From reverse proxy.") }).Methods("GET")
+	apiRouter.HandleFunc("/token", tokenHandler).Methods("GET")
+	apiRouter.HandleFunc("/upload", uploadHandler).Methods("POST")
 
 	err = http.ListenAndServe(":8080", corsMiddleware(csrfMiddleware(r)))
 	if err != nil {

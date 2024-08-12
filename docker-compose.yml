@@ -4,17 +4,26 @@ services:
     build: ./build/frontend
     volumes:
       - ./frontend/src:/frontend
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
   backend:
     build: ./build/backend
     volumes:
       - ./backend/src:/backend
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
   localstack:
     image: localstack/localstack:s3-latest
     ports:
       - "4566:4566"
     environment:
       - SERVICES=s3
+  nginx:
+    build: ./build/reverseProxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./build/reverseProxy:/etc/nginx
+    depends_on:
+      - frontend
+      - backend

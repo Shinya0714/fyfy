@@ -23,14 +23,14 @@ export default function Home() {
 
     try {
       // サーバーからCSRFトークンを取得
-      const csrfResponse = await axios.get('http://localhost:8080/token', { withCredentials: true });
+      const csrfResponse = await axios.get('http://localhost/api/token', { withCredentials: true });
       const csrfToken = csrfResponse.data.csrf_token;
 
       const formData = new FormData();
       formData.append('pdfFile', selectedFile);
 
       // ファイルアップロードのPOSTリクエストを送信
-      const response = await axios.post('http://localhost:8080/upload', formData, {
+      const response = await axios.post('http://localhost/api/upload', formData, {
         headers: {
           'X-CSRF-Token': csrfToken
         },
