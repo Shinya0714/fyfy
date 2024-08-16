@@ -69,6 +69,7 @@ func main() {
 	apiRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "healthy. From reverse proxy.") }).Methods("GET")
 	apiRouter.HandleFunc("/token", tokenHandler).Methods("GET")
 	apiRouter.HandleFunc("/upload", uploadHandler).Methods("POST")
+	apiRouter.HandleFunc("/file/items", getAllItems).Methods("GET")
 
 	err = http.ListenAndServe(":8080", corsMiddleware(csrfMiddleware(r)))
 	if err != nil {
@@ -374,4 +375,40 @@ func GenerateUUIDv4() (string, error) {
 		hex.EncodeToString(uuid[8:10]),
 		hex.EncodeToString(uuid[10:]),
 	), nil
+}
+
+func getAllItems(w http.ResponseWriter, r *http.Request) {
+	// DynamoDBセッションの作成
+	sess, err := session.NewSession(&aws.Config{
+		Endpoint:    aws.String(S3Endpoint),
+		Region:      aws.String(S3Region),
+		Credentials: credentials.NewStaticCredentials("dummy", "dummy", ""),
+	})
+	if err != nil {
+		http.Error(w, "Failed to create DynamoDB session", http.StatusInternalServerError)
+		return
+	}
+
+	// DynamoDBクライアントの作成
+	svc := dynamodb.New(sess)
+
+	// Scan のリクエストを作成
+	result, err := svc.Scan(&dynamodb.ScanInput{
+		TableName: aws.String("TestTable"),
+	})
+	if err != nil {
+		http.Error(w, "Failed to scan DynamoDB table", http.StatusInternalServerError)
+		return
+	}
+
+	// アイテムを JSON 形式でエンコード
+	response, err := json.Marshal(result.Items)
+	if err != nil {
+		http.Error(w, "Failed to encode response as JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// HTTP レスポンスのヘッダーを設定
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(response)
 }

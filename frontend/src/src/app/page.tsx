@@ -3,8 +3,15 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
+interface Item {
+  ID: { S: string };
+  Name: { S: string };
+  Password: { S: string };
+}
+
 export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -42,6 +49,12 @@ export default function Home() {
       }
 
       console.log('File uploaded successfully:', response.data.message);
+
+      const items = await axios.get('http://localhost/api/file/items');
+      console.log(items)
+
+      setItems(items.data);
+
     } catch (error) {
       console.error('Error uploading file:', error);
     }
@@ -51,6 +64,15 @@ export default function Home() {
     <div>
       <input type="file" onChange={handleFileChange} />
       <button type="submit" onClick={submit}>Submit</button>
+      <ul>
+        {items.map((item, index) => (
+          <li key={index}>
+            <strong>ID:</strong> {item.ID.S} <br />
+            <strong>Name:</strong> {item.Name.S} <br />
+            <strong>Password:</strong> {item.Password.S}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
