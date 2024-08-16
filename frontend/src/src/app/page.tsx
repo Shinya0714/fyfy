@@ -56,6 +56,26 @@ export default function Home() {
     }
   };
 
+  const download = async (event: React.MouseEvent<HTMLButtonElement>, id: string) => {
+    // デフォルトのボタン動作をキャンセル
+    event.preventDefault();
+
+    const response = await axios.get('http://localhost/api/download', {
+      responseType: 'blob',
+      params: {
+        id: id
+      }
+    })
+
+    // Blobを使ってURLを作成
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const urlObject = URL.createObjectURL(blob);
+
+    // 新しいタブでPDFを表示
+    window.open(urlObject);
+  }
+
+
   const getAllItems = async () => {
     try {
       const response = await axios.get('http://localhost/api/file/items');
@@ -82,6 +102,7 @@ export default function Home() {
           <li key={index}>
             <strong>ID:</strong> {item.ID.S} <br />
             <strong>Name:</strong> {item.Name.S} <br />
+            <button onClick={(event) => download(event, item.ID.S)}>Download</button>
           </li>
         ))}
       </ul>

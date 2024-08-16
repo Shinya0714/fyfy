@@ -69,6 +69,7 @@ func main() {
 	apiRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "healthy. From reverse proxy.") }).Methods("GET")
 	apiRouter.HandleFunc("/token", tokenHandler).Methods("GET")
 	apiRouter.HandleFunc("/upload", uploadHandler).Methods("POST")
+	apiRouter.HandleFunc("/download", downloadHandler).Methods("GET")
 	apiRouter.HandleFunc("/file/items", getAllItems).Methods("GET")
 
 	err = http.ListenAndServe(":8080", corsMiddleware(csrfMiddleware(r)))
@@ -365,6 +366,46 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// JSONデータをレスポンスとして書き込む
 	w.Write(itemJSON)
+}
+
+func downloadHandler(w http.ResponseWriter, r *http.Request) {
+	// クエリパラメータを取得
+	queryParams := r.URL.Query()
+
+	// 特定のパラメータを取得
+	id := queryParams.Get("id")
+
+	// コンソールに出力
+	fmt.Println("ID:", id)
+
+	// LocalStackのS3クライアントを作成
+	sess := session.Must(session.NewSession(&aws.Config{
+		Endpoint:         aws.String(S3Endpoint),
+		Region:           aws.String(S3Region),
+		Credentials:      credentials.NewStaticCredentials("dummy", "dummy", ""),
+		S3ForcePathStyle: aws.Bool(true),
+	}))
+	svc := s3.New(sess)
+
+	// PDFファイルの取得
+	key := "test.pdf"
+	resp, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(S3Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		http.Error(w, "Failed to get object from S3", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	// コンテンツタイプをPDFに設定
+	w.Header().Set("Content-Type", "application/pdf")
+
+	// PDFファイルをレスポンスとして書き込む
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
+	}
 }
 
 // func makeBucket() error {

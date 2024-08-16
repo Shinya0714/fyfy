@@ -14,7 +14,7 @@
  - [x] CSRF対策
 
 パフォーマンス:
- - [ ] CDN（Content Delivery Network）
+ - [x] CDN（Content Delivery Network）
  - [x] キャッシュ戦略
 
 フロントエンド:
