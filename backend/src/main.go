@@ -322,16 +322,22 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	password, err := GenerateRandomPassword(16)
+	if err != nil {
+		fmt.Println("Error generating password:", err)
+		return
+	}
+
 	// 挿入するアイテムを定義
 	item := map[string]*dynamodb.AttributeValue{
 		"ID": {
 			S: aws.String(uuid),
 		},
 		"Name": {
-			S: aws.String("its test file name"),
+			S: aws.String(handler.Filename),
 		},
 		"Password": {
-			S: aws.String("test password"),
+			S: aws.String(password),
 		},
 	}
 
@@ -411,4 +417,22 @@ func getAllItems(w http.ResponseWriter, r *http.Request) {
 	// HTTP レスポンスのヘッダーを設定
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
+}
+
+func GenerateRandomPassword(length int) (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?/~`"
+
+	// charset からランダムな文字を生成するためのスライスを作成
+	bytes := make([]byte, length)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+
+	// bytes からランダムに文字を選択
+	for i := 0; i < length; i++ {
+		bytes[i] = charset[int(bytes[i])%len(charset)]
+	}
+
+	return string(bytes), nil
 }

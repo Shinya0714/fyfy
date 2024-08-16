@@ -54,7 +54,6 @@ export default function Home() {
       console.log(items)
 
       setItems(items.data);
-
     } catch (error) {
       console.error('Error uploading file:', error);
     }
