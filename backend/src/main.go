@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/csrf"
@@ -203,7 +205,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// LocalStackのS3クライアントを作成
 	sess := session.Must(session.NewSession(&aws.Config{
 		Endpoint:         aws.String(S3Endpoint),
-		Region:           aws.String(S3Region), // リージョンは適宜変更してください
+		Region:           aws.String(S3Region),
 		Credentials:      credentials.NewStaticCredentials("dummy", "dummy", ""),
 		S3ForcePathStyle: aws.Bool(true),
 	}))
@@ -260,15 +262,11 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 確認のために暗号化されたデータを出力
-	// fmt.Printf("Encrypted Data: %x\n", encryptedData)
-
 	// S3にファイルをアップロード
 	_, err = svc.PutObject(&s3.PutObjectInput{
 		Bucket: aws.String(S3Bucket),
 		// S3にアップロードする際のオブジェクトキー
-		Key: aws.String(handler.Filename),
-		// Body: aws.ReadSeekCloser(bytes.NewReader(encryptedData)),
+		Key:  aws.String(handler.Filename),
 		Body: bytes.NewReader(encryptedData),
 	})
 	if err != nil {
@@ -277,12 +275,103 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// DynamoDBクライアントの作成
+	dynamodbClient := dynamodb.New(sess)
+
+	// テーブルの存在確認
+	_, err = dynamodbClient.DescribeTable(&dynamodb.DescribeTableInput{
+		TableName: aws.String("TestTable"),
+	})
+	if err == nil {
+		fmt.Println("Table TestTable exists")
+	} else {
+		// テーブル作成のリクエストを定義
+		createTableInput := &dynamodb.CreateTableInput{
+			TableName: aws.String("TestTable"),
+			KeySchema: []*dynamodb.KeySchemaElement{
+				{
+					AttributeName: aws.String("ID"),
+					KeyType:       aws.String(dynamodb.KeyTypeHash),
+				},
+			},
+			AttributeDefinitions: []*dynamodb.AttributeDefinition{
+				{
+					AttributeName: aws.String("ID"),
+					AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
+				},
+			},
+			ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(5),
+				WriteCapacityUnits: aws.Int64(5),
+			},
+		}
+
+		// テーブルの作成
+		_, err = dynamodbClient.CreateTable(createTableInput)
+		if err != nil {
+			log.Fatalf("failed to create table, %v", err)
+		}
+
+		fmt.Println("Table successfully created!")
+	}
+
+	uuid, err := GenerateUUIDv4()
+	if err != nil {
+		fmt.Println("Error generating UUID:", err)
+		return
+	}
+
+	// 挿入するアイテムを定義
+	item := map[string]*dynamodb.AttributeValue{
+		"ID": {
+			S: aws.String(uuid),
+		},
+		"Name": {
+			S: aws.String("its test file name"),
+		},
+		"Password": {
+			S: aws.String("test password"),
+		},
+	}
+
+	// アイテムをDynamoDBに挿入
+	_, err = dynamodbClient.PutItem(&dynamodb.PutItemInput{
+		TableName: aws.String("TestTable"),
+		Item:      item,
+	})
+	if err != nil {
+		log.Fatalf("failed to put item, %v", err)
+	}
+
+	fmt.Println("Item successfully inserted!")
+
 	response := map[string]string{"message": "File uploaded successfully"}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
 // func makeBucket() error {
-
 // 	return nil , error
 // }
+
+// UUID生成
+func GenerateUUIDv4() (string, error) {
+	uuid := make([]byte, 16)
+	_, err := io.ReadFull(rand.Reader, uuid)
+	if err != nil {
+		return "", err
+	}
+
+	// Set version (4) and variant (10) bits
+	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
+	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant 10
+
+	// Format the UUID to a string
+	return fmt.Sprintf("%s-%s-%s-%s-%s",
+		hex.EncodeToString(uuid[0:4]),
+		hex.EncodeToString(uuid[4:6]),
+		hex.EncodeToString(uuid[6:8]),
+		hex.EncodeToString(uuid[8:10]),
+		hex.EncodeToString(uuid[10:]),
+	), nil
+}

@@ -13,11 +13,11 @@ services:
     expose:
       - "8080"
   localstack:
-    image: localstack/localstack:s3-latest
+    image: localstack/localstack
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=s3
+      - SERVICES=s3,dynamodb,sqs
   nginx:
     build: ./build/reverseProxy
     ports:
