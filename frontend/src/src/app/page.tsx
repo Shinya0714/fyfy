@@ -13,13 +13,13 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [items, setItems] = useState<Item[]>([]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFile(e.target.files[0]);
     }
   };
 
-  const submit = async (event: React.MouseEvent<HTMLButtonElement>) => {
+  const upload = async (event: React.MouseEvent<HTMLButtonElement>) => {
     // デフォルトのボタン動作をキャンセル
     event.preventDefault();
 
@@ -75,7 +75,6 @@ export default function Home() {
     window.open(urlObject);
   }
 
-
   const getAllItems = async () => {
     try {
       const response = await axios.get('http://localhost/api/file/items');
@@ -84,7 +83,6 @@ export default function Home() {
       console.error('Error fetching data:', error);
     }
   };
-
 
   useEffect(
       () => {
@@ -95,8 +93,8 @@ export default function Home() {
 
   return (
     <div>
-      <input type="file" onChange={handleFileChange} />
-      <button type="submit" onClick={submit}>Submit</button>
+      <input type="file" onChange={fileSelect} />
+      <button type="submit" onClick={upload}>Upload</button>
       <ul>
         {items.map((item, index) => (
           <li key={index}>
