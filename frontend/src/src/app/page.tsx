@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
 interface Item {
@@ -48,16 +48,30 @@ export default function Home() {
         throw new Error('Failed to upload file');
       }
 
-      console.log('File uploaded successfully:', response.data.message);
+      alert('パスワードを生成しました\n\n' + response.data.Password.S);
 
-      const items = await axios.get('http://localhost/api/file/items');
-      console.log(items)
-
-      setItems(items.data);
+      getAllItems();
     } catch (error) {
       console.error('Error uploading file:', error);
     }
   };
+
+  const getAllItems = async () => {
+    try {
+      const response = await axios.get('http://localhost/api/file/items');
+      setItems(response.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+
+  useEffect(
+      () => {
+        getAllItems();
+      },
+  []
+  );
 
   return (
     <div>
@@ -68,7 +82,6 @@ export default function Home() {
           <li key={index}>
             <strong>ID:</strong> {item.ID.S} <br />
             <strong>Name:</strong> {item.Name.S} <br />
-            <strong>Password:</strong> {item.Password.S}
           </li>
         ))}
       </ul>

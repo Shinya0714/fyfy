@@ -352,9 +352,19 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Item successfully inserted!")
 
-	response := map[string]string{"message": "File uploaded successfully"}
+	// JSONに変換
+	itemJSON, err := json.Marshal(item)
+	if err != nil {
+		http.Error(w, "Failed to marshal item to JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// HTTPレスポンスのヘッダーを設定
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	w.WriteHeader(http.StatusOK)
+
+	// JSONデータをレスポンスとして書き込む
+	w.Write(itemJSON)
 }
 
 // func makeBucket() error {
@@ -369,11 +379,9 @@ func GenerateUUIDv4() (string, error) {
 		return "", err
 	}
 
-	// Set version (4) and variant (10) bits
 	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
 	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant 10
 
-	// Format the UUID to a string
 	return fmt.Sprintf("%s-%s-%s-%s-%s",
 		hex.EncodeToString(uuid[0:4]),
 		hex.EncodeToString(uuid[4:6]),
@@ -398,7 +406,7 @@ func getAllItems(w http.ResponseWriter, r *http.Request) {
 	// DynamoDBクライアントの作成
 	svc := dynamodb.New(sess)
 
-	// Scan のリクエストを作成
+	// Scanのリクエストを作成
 	result, err := svc.Scan(&dynamodb.ScanInput{
 		TableName: aws.String("TestTable"),
 	})
@@ -407,14 +415,14 @@ func getAllItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// アイテムを JSON 形式でエンコード
+	// アイテムをJSON形式でエンコード
 	response, err := json.Marshal(result.Items)
 	if err != nil {
 		http.Error(w, "Failed to encode response as JSON", http.StatusInternalServerError)
 		return
 	}
 
-	// HTTP レスポンスのヘッダーを設定
+	// HTTPレスポンスのヘッダーを設定
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(response)
 }
@@ -422,14 +430,14 @@ func getAllItems(w http.ResponseWriter, r *http.Request) {
 func GenerateRandomPassword(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?/~`"
 
-	// charset からランダムな文字を生成するためのスライスを作成
+	// charsetからランダムな文字を生成するためのスライスを作成
 	bytes := make([]byte, length)
 	_, err := rand.Read(bytes)
 	if err != nil {
 		return "", err
 	}
 
-	// bytes からランダムに文字を選択
+	// bytesからランダムに文字を選択
 	for i := 0; i < length; i++ {
 		bytes[i] = charset[int(bytes[i])%len(charset)]
 	}
