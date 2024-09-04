@@ -11,7 +11,7 @@ services:
     volumes:
       - ./backend/src:/backend
     expose:
-      - "8080"
+      - "8443"
   localstack:
     image: localstack/localstack
     ports:
@@ -22,6 +22,7 @@ services:
     build: ./build/reverseProxy
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./build/reverseProxy:/etc/nginx
     depends_on:

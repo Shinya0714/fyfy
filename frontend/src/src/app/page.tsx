@@ -30,14 +30,14 @@ export default function Home() {
 
     try {
       // サーバーからCSRFトークンを取得
-      const csrfResponse = await axios.get('http://localhost/api/token', { withCredentials: true });
+      const csrfResponse = await axios.get('https://localhost/api/token', { withCredentials: true });
       const csrfToken = csrfResponse.data.csrf_token;
 
       const formData = new FormData();
       formData.append('pdfFile', selectedFile);
 
       // ファイルアップロードのPOSTリクエストを送信
-      const response = await axios.post('http://localhost/api/upload', formData, {
+      const response = await axios.post('https://localhost/api/upload', formData, {
         headers: {
           'X-CSRF-Token': csrfToken
         },
@@ -60,7 +60,7 @@ export default function Home() {
     // デフォルトのボタン動作をキャンセル
     event.preventDefault();
 
-    const response = await axios.get('http://localhost/api/download', {
+    const response = await axios.get('https://localhost/api/download', {
       responseType: 'blob',
       params: {
         id: id
@@ -77,7 +77,7 @@ export default function Home() {
 
   const getAllItems = async () => {
     try {
-      const response = await axios.get('http://localhost/api/file/items');
+      const response = await axios.get('https://localhost/api/file/items');
       setItems(response.data);
     } catch (error) {
       console.error('Error fetching data:', error);

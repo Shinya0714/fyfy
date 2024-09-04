@@ -55,9 +55,9 @@ func main() {
 
 	// CORS設定
 	corsMiddleware := handlers.CORS(
-		handlers.AllowedOrigins([]string{"http://frontend"}),
+		handlers.AllowedOrigins([]string{"http://frontend", "https://localhost", "http://localhost:3000"}),
 		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"}),
-		handlers.AllowedHeaders([]string{"X-Csrf-Token"}),
+		handlers.AllowedHeaders([]string{"X-Csrf-Token", "Content-Type", "Authorization"}),
 		handlers.AllowCredentials(),
 	)
 
@@ -72,13 +72,15 @@ func main() {
 	apiRouter.HandleFunc("/download", downloadHandler).Methods("GET")
 	apiRouter.HandleFunc("/file/items", getAllItems).Methods("GET")
 
-	err = http.ListenAndServe(":8080", corsMiddleware(csrfMiddleware(r)))
+	// err = http.ListenAndServe(":8080", corsMiddleware(csrfMiddleware(r)))
+	err = http.ListenAndServeTLS(":8443", "server.crt", "server.key", corsMiddleware(csrfMiddleware(r)))
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 	}
 }
 
 func tokenHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("--- tokenHandler START ---")
 	token := csrf.Token(r)
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"csrf_token": "%s"}`, token)
