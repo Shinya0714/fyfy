@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -22,6 +24,9 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 // AWS S3の設定
@@ -31,7 +36,26 @@ const (
 	S3Bucket   = "my-local-bucket"
 )
 
+var (
+	oauth2Config     *oauth2.Config
+	oauthStateString string
+)
+
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
+	oauth2Config = &oauth2.Config{
+		ClientID:     os.Getenv("GOOGLE_API_OAUTH2_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_API_OAUTH2_CLIENT_SECRET"),
+		RedirectURL:  "https://localhost/api/oauth2callback",
+		Scopes:       []string{"profile", "email"},
+		Endpoint:     google.Endpoint,
+	}
+	oauthStateString = "randomStateString"
+
 	// JWT生成
 	tokenString, err := generateJWT()
 	if err != nil {
@@ -67,6 +91,9 @@ func main() {
 	// プレフィックスを `/api` としてルーターを作成
 	apiRouter := r.PathPrefix("/api").Subrouter()
 	apiRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "healthy. From reverse proxy.") }).Methods("GET")
+	// OAuth 2.0認証ハンドラ
+	apiRouter.HandleFunc("/auth", authHandler).Methods("GET")
+	apiRouter.HandleFunc("/oauth2callback", callbackHandler).Methods("GET")
 	apiRouter.HandleFunc("/token", tokenHandler).Methods("GET")
 	apiRouter.HandleFunc("/upload", uploadHandler).Methods("POST")
 	apiRouter.HandleFunc("/download", downloadHandler).Methods("GET")
@@ -79,8 +106,41 @@ func main() {
 	}
 }
 
+// 認証リクエストを処理するハンドラー
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	url := oauth2Config.AuthCodeURL(oauthStateString, oauth2.AccessTypeOffline)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+// コールバック処理のハンドラー
+func callbackHandler(w http.ResponseWriter, r *http.Request) {
+	if r.FormValue("state") != oauthStateString {
+		http.Error(w, "State does not match", http.StatusBadRequest)
+		return
+	}
+
+	// 認可コードを取得してトークンをリクエスト
+	code := r.FormValue("code")
+	token, err := oauth2Config.Exchange(context.Background(), code)
+	if err != nil {
+		http.Error(w, "Failed to exchange token", http.StatusInternalServerError)
+		return
+	}
+
+	// トークンを使ってユーザー情報を取得
+	client := oauth2Config.Client(context.Background(), token)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	if err != nil {
+		http.Error(w, "Failed to get user info", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	// ユーザー情報取得が成功した場合にリダイレクト
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 func tokenHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("--- tokenHandler START ---")
 	token := csrf.Token(r)
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"csrf_token": "%s"}`, token)
