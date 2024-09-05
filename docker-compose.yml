@@ -28,9 +28,3 @@ services:
     depends_on:
       - frontend
       - backend
-  oauth:
-    build: ./build/oauth
-    volumes:
-      - ./oauth/src:/oauth
-    expose:
-      - "8080"
