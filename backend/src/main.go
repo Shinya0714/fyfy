@@ -73,7 +73,7 @@ func main() {
 	apiRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "healthy. From reverse proxy.") }).Methods("GET")
 
 	// OAuth2.0
-	apiRouter.HandleFunc("/auth", authHandler).Methods("GET")
+	apiRouter.HandleFunc("/oauth", oauthHandler).Methods("GET")
 	apiRouter.HandleFunc("/oauth2callback", callbackHandler).Methods("GET")
 	// jwt
 	apiRouter.HandleFunc("/jwt", jwtHandler).Methods("GET")
@@ -97,7 +97,7 @@ func main() {
 }
 
 // 認証リクエストを処理するハンドラー
-func authHandler(w http.ResponseWriter, r *http.Request) {
+func oauthHandler(w http.ResponseWriter, r *http.Request) {
 	url := oauth2Config.AuthCodeURL(oauthStateString, oauth2.AccessTypeOffline)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
