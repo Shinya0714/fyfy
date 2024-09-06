@@ -29,8 +29,24 @@ export default function Home() {
     }
 
     try {
+      // axiosでJWTトークンを取得し、sessionStorageに保存する
+      axios.get('https://localhost/api/jwt') // GoのJWTエンドポイントにリクエスト
+        .then(response => {
+          const token = response.data.jwt; // レスポンスからJWTトークンを取得
+          console.log('Received JWT token:', token);
+
+          // JWTトークンをsessionStorageに保存
+          sessionStorage.setItem('jwtToken', token);
+
+          // 保存したトークンを確認
+          console.log('JWT token saved in sessionStorage:', sessionStorage.getItem('jwtToken'));
+        })
+        .catch(error => {
+          console.error('Error fetching JWT token:', error);
+        });
+
       // サーバーからCSRFトークンを取得
-      const csrfResponse = await axios.get('https://localhost/api/token', { withCredentials: true });
+      const csrfResponse = await axios.get('https://localhost/api/csrf', { withCredentials: true });
       const csrfToken = csrfResponse.data.csrf_token;
 
       const formData = new FormData();
@@ -39,6 +55,7 @@ export default function Home() {
       // ファイルアップロードのPOSTリクエストを送信
       const response = await axios.post('https://localhost/api/upload', formData, {
         headers: {
+          'Authorization': `Bearer ${sessionStorage.getItem("jwtToken")}`,
           'X-CSRF-Token': csrfToken
         },
         withCredentials: true

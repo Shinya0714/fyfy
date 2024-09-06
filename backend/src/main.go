@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -54,52 +56,40 @@ func main() {
 		Scopes:       []string{"profile", "email"},
 		Endpoint:     google.Endpoint,
 	}
-	oauthStateString = "randomStateString"
-
-	// JWT生成
-	tokenString, err := generateJWT()
-	if err != nil {
-		fmt.Println("Error generating token:", err)
-		return
-	}
-	fmt.Println("Generated token:", tokenString)
-
-	// JWT検証
-	token, err := verifyJWT(tokenString)
-	if err != nil {
-		fmt.Println("Error verifying token:", err)
-		return
-	}
-	fmt.Println("Token is valid:", token)
+	oauthStateString = generateStateString()
 
 	r := mux.NewRouter()
 
-	// CSRF保護のためのキー
-	csrfKey := []byte("32-byte-long-auth-key")
-
 	// CORS設定
 	corsMiddleware := handlers.CORS(
-		handlers.AllowedOrigins([]string{"http://frontend", "https://localhost", "http://localhost:3000"}),
+		handlers.AllowedOrigins([]string{"https://localhost"}),
 		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"}),
 		handlers.AllowedHeaders([]string{"X-Csrf-Token", "Content-Type", "Authorization"}),
 		handlers.AllowCredentials(),
 	)
 
-	// CSRF保護ミドルウェアを設定
-	csrfMiddleware := csrf.Protect(csrfKey, csrf.Secure(false))
-
 	// プレフィックスを `/api` としてルーターを作成
 	apiRouter := r.PathPrefix("/api").Subrouter()
 	apiRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "healthy. From reverse proxy.") }).Methods("GET")
-	// OAuth 2.0認証ハンドラ
+
+	// OAuth2.0
 	apiRouter.HandleFunc("/auth", authHandler).Methods("GET")
 	apiRouter.HandleFunc("/oauth2callback", callbackHandler).Methods("GET")
-	apiRouter.HandleFunc("/token", tokenHandler).Methods("GET")
+	// jwt
+	apiRouter.HandleFunc("/jwt", jwtHandler).Methods("GET")
+	// CSRF
+	apiRouter.HandleFunc("/csrf", csrfHandler).Methods("GET")
+
 	apiRouter.HandleFunc("/upload", uploadHandler).Methods("POST")
 	apiRouter.HandleFunc("/download", downloadHandler).Methods("GET")
 	apiRouter.HandleFunc("/file/items", getAllItems).Methods("GET")
 
-	// err = http.ListenAndServe(":8080", corsMiddleware(csrfMiddleware(r)))
+	// CSRF保護のためのキー
+	csrfKey := []byte(generateStateString())
+
+	// CSRF保護ミドルウェアを設定
+	csrfMiddleware := csrf.Protect(csrfKey, csrf.Secure(false))
+
 	err = http.ListenAndServeTLS(":8443", "server.crt", "server.key", corsMiddleware(csrfMiddleware(r)))
 	if err != nil {
 		fmt.Println("Error starting server:", err)
@@ -140,13 +130,23 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func tokenHandler(w http.ResponseWriter, r *http.Request) {
-	token := csrf.Token(r)
+func jwtHandler(w http.ResponseWriter, r *http.Request) {
+	// JWT生成
+	token, err := generateJWT()
+	if err != nil {
+		fmt.Println("Error generating token:", err)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"csrf_token": "%s"}`, token)
+	json.NewEncoder(w).Encode(map[string]string{"jwt": token})
 }
 
-var mySigningKey = []byte("secret")
+func csrfHandler(w http.ResponseWriter, r *http.Request) {
+	token := csrf.Token(r)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"csrf_token": token})
+}
 
 // JWT生成
 func generateJWT() (string, error) {
@@ -156,7 +156,7 @@ func generateJWT() (string, error) {
 		"exp":        time.Now().Add(time.Minute * 30).Unix(),
 	})
 
-	tokenString, err := token.SignedString(mySigningKey)
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SIGNIN_KEY")))
 	if err != nil {
 		return "", err
 	}
@@ -170,7 +170,7 @@ func verifyJWT(tokenString string) (*jwt.Token, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return mySigningKey, nil
+		return []byte(os.Getenv("JWT_SIGNIN_KEY")), nil
 	})
 
 	if err != nil {
@@ -266,6 +266,28 @@ func encrypt(data []byte, passPhrase string) ([]byte, error) {
 // }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	// Authorizationヘッダーからトークンを取得
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "No Authorization header", http.StatusUnauthorized)
+		return
+	}
+
+	// "Bearer " のプレフィックスを取り除いてJWTトークンを取得
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == authHeader {
+		http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
+		return
+	}
+
+	// JWT検証
+	token, err := verifyJWT(tokenString)
+	if err != nil {
+		fmt.Println("Error verifying token:", err)
+		return
+	}
+	fmt.Println("Token is valid:", token)
+
 	// LocalStackのS3クライアントを作成
 	sess := session.Must(session.NewSession(&aws.Config{
 		Endpoint:         aws.String(S3Endpoint),
@@ -276,7 +298,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	svc := s3.New(sess)
 
 	// バケットの存在確認
-	_, err := svc.HeadBucket(&s3.HeadBucketInput{
+	_, err = svc.HeadBucket(&s3.HeadBucketInput{
 		Bucket: aws.String(S3Bucket),
 	})
 	if err != nil {
@@ -546,4 +568,15 @@ func GenerateRandomPassword(length int) (string, error) {
 	}
 
 	return string(bytes), nil
+}
+
+func generateStateString() string {
+	// ランダムな32バイトのデータを生成し、base64エンコード
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		// エラー処理
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(b)
 }
