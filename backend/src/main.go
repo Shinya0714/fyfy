@@ -26,6 +26,7 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -42,6 +43,8 @@ var (
 	oauth2Config     *oauth2.Config
 	oauthStateString string
 )
+
+var store = sessions.NewCookieStore([]byte(os.Getenv("COOKIE_STORE_KEY")))
 
 func main() {
 	err := godotenv.Load()
@@ -75,6 +78,7 @@ func main() {
 	// OAuth2.0
 	apiRouter.HandleFunc("/oauth", oauthHandler).Methods("GET")
 	apiRouter.HandleFunc("/oauth2callback", callbackHandler).Methods("GET")
+	apiRouter.HandleFunc("/oauth2TokenCheck", oauth2TokenCheckHandler).Methods("GET")
 	// jwt
 	apiRouter.HandleFunc("/jwt", jwtHandler).Methods("GET")
 	// CSRF
@@ -126,8 +130,30 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	session, _ := store.Get(r, "auth-session")
+	session.Values["access_token"] = token.AccessToken
+	session.Values["refresh_token"] = token.RefreshToken
+	session.Save(r, w)
+
 	// ユーザー情報取得が成功した場合にリダイレクト
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func oauth2TokenCheckHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "auth-session")
+
+	accessToken, ok := session.Values["access_token"].(string)
+	if !ok {
+		http.Error(w, "No token found", http.StatusNotFound)
+		return
+	}
+
+	response := map[string]string{
+		"access_token": accessToken,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func jwtHandler(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,8 @@
 module fyfy
 
-go 1.22.4
+go 1.23
+
+toolchain go1.23.1
 
 require (
 	github.com/aws/aws-sdk-go v1.54.20
@@ -16,6 +18,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
+	github.com/gorilla/sessions v1.4.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 )
