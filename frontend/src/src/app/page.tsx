@@ -95,7 +95,7 @@ export default function Home() {
   const oauth2TokenFetch = async () => {
     try {
       const response = await axios.get('https://localhost/api/oauth2TokenCheck'); 
-      sessionStorage.setItem('auth_token',response.data.access_token);
+      sessionStorage.setItem('access_token',response.data.access_token);
     } catch (error) {
       console.error('Error fetching token:', error);
     }
@@ -114,7 +114,7 @@ export default function Home() {
       () => {
         oauth2TokenFetch();
         
-        if (sessionStorage.getItem('auth_token') == null) {
+        if (sessionStorage.getItem('access_token') == null) {
           window.location.href = 'https://localhost/auth';
         }
 

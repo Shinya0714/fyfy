@@ -42,9 +42,9 @@ const (
 var (
 	oauth2Config     *oauth2.Config
 	oauthStateString string
+	store            *sessions.CookieStore
+	storeKeyString   string
 )
-
-var store = sessions.NewCookieStore([]byte(os.Getenv("COOKIE_STORE_KEY")))
 
 func main() {
 	err := godotenv.Load()
@@ -130,6 +130,9 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	storeKeyString = os.Getenv("COOKIE_STORE_KEY")
+	var store = sessions.NewCookieStore([]byte(storeKeyString))
+
 	session, _ := store.Get(r, "auth-session")
 	session.Values["access_token"] = token.AccessToken
 	session.Values["refresh_token"] = token.RefreshToken
@@ -140,6 +143,9 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func oauth2TokenCheckHandler(w http.ResponseWriter, r *http.Request) {
+	storeKeyString = os.Getenv("COOKIE_STORE_KEY")
+	var store = sessions.NewCookieStore([]byte(storeKeyString))
+
 	session, _ := store.Get(r, "auth-session")
 
 	accessToken, ok := session.Values["access_token"].(string)
