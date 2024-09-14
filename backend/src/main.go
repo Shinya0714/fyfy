@@ -265,37 +265,37 @@ func encrypt(data []byte, passPhrase string) ([]byte, error) {
 	return cipherText, nil
 }
 
-// // AES復号化
-// func decrypt(data []byte, passphrase string) ([]byte, error) {
-// 	// AESブロック暗号を生成
-// 	block, err := aes.NewCipher([]byte(passphrase))
-// 	if err != nil {
-// 		return nil, err
-// 	}
+// AES復号化
+func decrypt(data []byte, passphrase string) ([]byte, error) {
+	// AESブロック暗号を生成
+	block, err := aes.NewCipher([]byte(passphrase))
+	if err != nil {
+		return nil, err
+	}
 
-// 	// Galois/Counter Mode (GCM) を使用するためのインターフェースを生成
-// 	gcm, err := cipher.NewGCM(block)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// Galois/Counter Mode (GCM) を使用するためのインターフェースを生成
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
 
-// 	// GCMのNonce (Number used once) サイズを取得
-// 	nonceSize := gcm.NonceSize()
-// 	if len(data) < nonceSize {
-// 		return nil, fmt.Errorf("ciphertext too short")
-// 	}
+	// GCMのNonce (Number used once) サイズを取得
+	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
 
-// 	// Nonceと暗号文を分割
-// 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+	// Nonceと暗号文を分割
+	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
 
-// 	// データを復号化し、プレーンテキストを生成
-// 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// データを復号化し、プレーンテキストを生成
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
 
-// 	return plaintext, nil
-// }
+	return plaintext, nil
+}
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Authorizationヘッダーからトークンを取得
@@ -515,11 +515,26 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	// S3から取得したデータを読み込み
+	encryptedData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Failed to read S3 object", http.StatusInternalServerError)
+		return
+	}
+
+	// パスフレーズを指定して復号化
+	passphrase := "thisis16byteskey" // 適切なパスフレーズを指定
+	decryptedData, err := decrypt(encryptedData, passphrase)
+	if err != nil {
+		http.Error(w, "Failed to decrypt data", http.StatusInternalServerError)
+		return
+	}
+
 	// コンテンツタイプをPDFに設定
 	w.Header().Set("Content-Type", "application/pdf")
 
-	// PDFファイルをレスポンスとして書き込む
-	if _, err := io.Copy(w, resp.Body); err != nil {
+	// 復号化されたPDFファイルをレスポンスとして書き込む
+	if _, err := w.Write(decryptedData); err != nil {
 		http.Error(w, "Failed to write response", http.StatusInternalServerError)
 	}
 }
